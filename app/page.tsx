@@ -1,11 +1,16 @@
+"use client"
+
+import { useState } from "react"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Bell } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { ChevronLeft, ChevronRight, Bell, Search, Loader2, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 
 const recentActivities = [
@@ -36,7 +41,66 @@ const currentProjects = [
   { name: "User Research", progress: 90, status: "Review", team: "Research Team" },
 ]
 
+const searchSuggestions = [
+  "今日のスケジュールを確認して",
+  "プロジェクトの進捗を教えて",
+  "会議の準備をするには？",
+  "タスクの優先順位をつけて",
+]
+
 export default function HomePage() {
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResult, setSearchResult] = useState<string | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const { toast } = useToast()
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || isSearching) return
+
+    setIsSearching(true)
+    setShowSuggestions(false)
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: searchQuery }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'API呼び出しに失敗しました')
+      }
+
+      setSearchResult(data.response)
+    } catch (error) {
+      console.error('Search error:', error)
+      toast({
+        title: "検索エラー",
+        description: error instanceof Error ? error.message : "検索中にエラーが発生しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setSearchQuery(suggestion)
+    setShowSuggestions(false)
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSearch()
+    }
+  }
+
   return (
     <SidebarInset>
       <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
@@ -66,8 +130,89 @@ export default function HomePage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="text-center py-8">
           <h1 className="text-2xl font-bold mb-2">👋 こんにちは！</h1>
-          <p className="text-muted-foreground">何でも質問してください！</p>
+          <p className="text-muted-foreground mb-6">何でも質問してください！</p>
+          
+          {/* Google-style Search Bar */}
+          <div className="max-w-2xl mx-auto space-y-4">
+            <div className="relative">
+              <div className="relative flex items-center">
+                <Search className="absolute left-4 h-5 w-5 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  onFocus={() => setShowSuggestions(true)}
+                  placeholder="何でも質問してください..."
+                  className="pl-12 pr-24 py-6 text-lg border-2 rounded-full shadow-lg hover:shadow-xl transition-shadow focus:shadow-xl"
+                  disabled={isSearching}
+                />
+                <div className="absolute right-2 flex items-center gap-2">
+                  <Button
+                    onClick={handleSearch}
+                    disabled={!searchQuery.trim() || isSearching}
+                    size="sm"
+                    className="rounded-full px-4"
+                  >
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        検索
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Search Suggestions */}
+              {showSuggestions && !searchQuery && (
+                <Card className="absolute top-full mt-2 w-full z-10 shadow-lg">
+                  <CardContent className="p-2">
+                    {searchSuggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className="w-full text-left px-4 py-2 hover:bg-muted rounded-md transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Search className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">{suggestion}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Search Result */}
+        {searchResult && (
+          <Card className="max-w-4xl mx-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                AI 回答
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="prose prose-sm max-w-none">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{searchResult}</p>
+              </div>
+              <div className="mt-4 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSearchResult(null)}
+                >
+                  結果を閉じる
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Recent Activities */}
         <Card>
