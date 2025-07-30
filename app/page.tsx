@@ -12,6 +12,8 @@ import { ChevronLeft, ChevronRight, Bell, Search, Loader2, Sparkles } from "luci
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { Markdown } from "@/components/ui/markdown"
+import { SearchResults } from "@/components/search-results"
+import { useDocumentSearch } from "@/hooks/use-document-search"
 import Image from "next/image"
 
 const recentActivities = [
@@ -49,44 +51,74 @@ const searchSuggestions = [
   "タスクの優先順位をつけて",
 ]
 
+const documentSearchSuggestions = [
+  "開発ガイドを教えて",
+  "リモートワークの規定は？",
+  "プロジェクトの技術仕様",
+  "会議の議事録を確認",
+]
+
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResult, setSearchResult] = useState<string | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [searchMode, setSearchMode] = useState<'ai' | 'documents'>('ai')
   const { toast } = useToast()
+  const { 
+    searchResults, 
+    isSearching: isDocumentSearching, 
+    error: documentSearchError,
+    searchDocuments, 
+    clearResults,
+    initializeIndex
+  } = useDocumentSearch()
 
   const handleSearch = async () => {
-    if (!searchQuery.trim() || isSearching) return
+    if (!searchQuery.trim() || isSearching || isDocumentSearching) return
 
-    setIsSearching(true)
     setShowSuggestions(false)
+    clearResults() // 前回の検索結果をクリア
+    setSearchResult(null) // AI回答もクリア
 
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: searchQuery }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'API呼び出しに失敗しました')
+    if (searchMode === 'documents') {
+      try {
+        await searchDocuments(searchQuery)
+      } catch (error) {
+        toast({
+          title: "検索エラー",
+          description: documentSearchError || "ドキュメント検索中にエラーが発生しました",
+          variant: "destructive",
+        })
       }
+    } else {
+      setIsSearching(true)
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message: searchQuery }),
+        })
 
-      setSearchResult(data.response)
-    } catch (error) {
-      console.error('Search error:', error)
-      toast({
-        title: "検索エラー",
-        description: error instanceof Error ? error.message : "検索中にエラーが発生しました",
-        variant: "destructive",
-      })
-    } finally {
-      setIsSearching(false)
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'API呼び出しに失敗しました')
+        }
+
+        setSearchResult(data.response)
+      } catch (error) {
+        console.error('Search error:', error)
+        toast({
+          title: "検索エラー",
+          description: error instanceof Error ? error.message : "検索中にエラーが発生しました",
+          variant: "destructive",
+        })
+      } finally {
+        setIsSearching(false)
+      }
     }
   }
 
@@ -94,6 +126,8 @@ export default function HomePage() {
     setSearchQuery(suggestion)
     setShowSuggestions(false)
   }
+
+  const currentSuggestions = searchMode === 'documents' ? documentSearchSuggestions : searchSuggestions
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -133,6 +167,30 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold mb-2">👋 こんにちは！</h1>
           <p className="text-muted-foreground mb-6">何でも質問してください！</p>
           
+          {/* Search Mode Selector */}
+          <div className="max-w-2xl mx-auto mb-4">
+            <div className="flex justify-center gap-2">
+              <Button
+                variant={searchMode === 'ai' ? 'default' : 'outline'}
+                onClick={() => setSearchMode('ai')}
+                size="sm"
+                className="rounded-full"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                AI質問
+              </Button>
+              <Button
+                variant={searchMode === 'documents' ? 'default' : 'outline'}
+                onClick={() => setSearchMode('documents')}
+                size="sm"
+                className="rounded-full"
+              >
+                <Search className="h-4 w-4 mr-2" />
+                ドキュメント検索
+              </Button>
+            </div>
+          </div>
+
           {/* Google-style Search Bar */}
           <div className="max-w-2xl mx-auto space-y-4">
             <div className="relative">
@@ -143,22 +201,26 @@ export default function HomePage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyPress={handleKeyPress}
                   onFocus={() => setShowSuggestions(true)}
-                  placeholder="何でも質問してください..."
+                  placeholder={searchMode === 'documents' ? "ドキュメントを検索..." : "何でも質問してください..."}
                   className="pl-12 pr-24 py-6 text-lg border-2 rounded-full shadow-lg hover:shadow-xl transition-shadow focus:shadow-xl"
-                  disabled={isSearching}
+                  disabled={isSearching || isDocumentSearching}
                 />
                 <div className="absolute right-2 flex items-center gap-2">
                   <Button
                     onClick={handleSearch}
-                    disabled={!searchQuery.trim() || isSearching}
+                    disabled={!searchQuery.trim() || isSearching || isDocumentSearching}
                     size="sm"
                     className="rounded-full px-4"
                   >
-                    {isSearching ? (
+                    {(isSearching || isDocumentSearching) ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
-                        <Sparkles className="h-4 w-4 mr-2" />
+                        {searchMode === 'documents' ? (
+                          <Search className="h-4 w-4 mr-2" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 mr-2" />
+                        )}
                         検索
                       </>
                     )}
@@ -170,14 +232,18 @@ export default function HomePage() {
               {showSuggestions && !searchQuery && (
                 <Card className="absolute top-full mt-2 w-full z-10 shadow-lg">
                   <CardContent className="p-2">
-                    {searchSuggestions.map((suggestion, index) => (
+                    {currentSuggestions.map((suggestion, index) => (
                       <button
                         key={index}
                         onClick={() => handleSuggestionClick(suggestion)}
                         className="w-full text-left px-4 py-2 hover:bg-muted rounded-md transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <Search className="h-4 w-4 text-muted-foreground" />
+                          {searchMode === 'documents' ? (
+                            <Search className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Sparkles className="h-4 w-4 text-muted-foreground" />
+                          )}
                           <span className="text-sm">{suggestion}</span>
                         </div>
                       </button>
@@ -189,7 +255,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Search Result */}
+        {/* Search Results */}
         {searchResult && (
           <Card className="max-w-4xl mx-auto">
             <CardHeader>
@@ -209,6 +275,27 @@ export default function HomePage() {
                   結果を閉じる
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Document Search Results */}
+        {searchResults && (
+          <div className="max-w-4xl mx-auto">
+            <SearchResults
+              query={searchResults.query}
+              results={searchResults.results}
+              summary={searchResults.summary}
+              onClose={clearResults}
+            />
+          </div>
+        )}
+
+        {/* Document Search Error */}
+        {documentSearchError && (
+          <Card className="max-w-4xl mx-auto border-destructive">
+            <CardContent className="p-4">
+              <p className="text-destructive text-sm">{documentSearchError}</p>
             </CardContent>
           </Card>
         )}
