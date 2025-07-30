@@ -1,8 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextRequest, NextResponse } from 'next/server'
 
+
 // Initialize the Gemini AI client
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+const genAI = new GoogleGenerativeAI('AIzaSyCr1mI5VNZDcofTRW7hlEIGjKDPtE8ew6o')
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,13 +13,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'メッセージが必要です' },
         { status: 400 }
-      )
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: 'API キーが設定されていません' },
-        { status: 500 }
       )
     }
 

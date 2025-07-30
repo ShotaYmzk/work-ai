@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { ChevronLeft, ChevronRight, Bell, Search, Loader2, Sparkles } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
+import { Markdown } from "@/components/ui/markdown"
 import Image from "next/image"
 
 const recentActivities = [
@@ -198,9 +199,7 @@ export default function HomePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="prose prose-sm max-w-none">
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">{searchResult}</p>
-              </div>
+              <Markdown content={searchResult} />
               <div className="mt-4 pt-4 border-t">
                 <Button 
                   variant="outline" 

@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Send, HelpCircle, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
+import { Markdown } from "@/components/ui/markdown"
 
 interface Message {
   id: string
@@ -141,7 +142,11 @@ export default function ChatbotPage() {
                   }`}
                 >
                   <CardContent className="p-3">
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {message.sender === "bot" ? (
+                      <Markdown content={message.content} className="text-sm" />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    )}
                     <p className="text-xs opacity-60 mt-1">
                       {message.timestamp.toLocaleTimeString('ja-JP', { 
                         hour: '2-digit', 
