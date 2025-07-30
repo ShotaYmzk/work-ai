@@ -7,8 +7,9 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from "@/co
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Send, HelpCircle } from "lucide-react"
+import { Send, HelpCircle, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useToast } from "@/hooks/use-toast"
 
 interface Message {
   id: string
@@ -20,42 +21,79 @@ interface Message {
 const suggestedQuestions = [
   "開発状況についてまとめているドキュメントはどこですか？",
   "必要な採用要件について教えてください。",
+  "プロジェクトの概要を説明してください。",
+  "技術的な質問があります。",
 ]
 
 export default function ChatbotPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      content: "👋 こんにちは！",
+      content: "👋 こんにちは！何でもお気軽にご質問ください。",
       sender: "bot",
       timestamp: new Date(),
     },
   ])
   const [inputValue, setInputValue] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
 
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || isLoading) return
 
-    const newMessage: Message = {
+    const userMessage: Message = {
       id: Date.now().toString(),
       content: inputValue,
       sender: "user",
       timestamp: new Date(),
     }
 
-    setMessages((prev) => [...prev, newMessage])
+    setMessages((prev) => [...prev, userMessage])
     setInputValue("")
+    setIsLoading(true)
 
-    // Simulate bot response
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: inputValue }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'API呼び出しに失敗しました')
+      }
+
       const botResponse: Message = {
         id: (Date.now() + 1).toString(),
-        content: "申し訳ございませんが、現在この機能は開発中です。しばらくお待ちください。",
+        content: data.response,
         sender: "bot",
         timestamp: new Date(),
       }
+
       setMessages((prev) => [...prev, botResponse])
-    }, 1000)
+    } catch (error) {
+      console.error('Chat error:', error)
+      toast({
+        title: "エラーが発生しました",
+        description: error instanceof Error ? error.message : "不明なエラーが発生しました",
+        variant: "destructive",
+      })
+      
+      // エラー時のフォールバック応答
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "申し訳ございません。現在サービスに接続できません。しばらくしてからもう一度お試しください。",
+        sender: "bot",
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, errorResponse])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSuggestedQuestion = (question: string) => {
@@ -103,25 +141,51 @@ export default function ChatbotPage() {
                   }`}
                 >
                   <CardContent className="p-3">
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-xs opacity-60 mt-1">
+                      {message.timestamp.toLocaleTimeString('ja-JP', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </p>
                   </CardContent>
                 </Card>
                 {message.sender === "user" && (
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback>中</AvatarFallback>
+                    <AvatarFallback>👤</AvatarFallback>
                   </Avatar>
                 )}
               </div>
             ))}
 
+            {/* Loading indicator */}
+            {isLoading && (
+              <div className="flex gap-3 justify-start">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>🤖</AvatarFallback>
+                </Avatar>
+                <Card className="bg-muted">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <p className="text-sm">考え中...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* Suggested Questions */}
-            {messages.length === 1 && (
+            {messages.length === 1 && !isLoading && (
               <div className="space-y-2">
+                <p className="text-sm text-muted-foreground text-center mb-3">
+                  以下の質問例をクリックするか、自由に質問してください：
+                </p>
                 {suggestedQuestions.map((question, index) => (
                   <Button
                     key={index}
                     variant="outline"
-                    className="w-full text-left justify-start h-auto p-3 whitespace-normal bg-transparent"
+                    className="w-full text-left justify-start h-auto p-3 whitespace-normal bg-transparent hover:bg-muted"
                     onClick={() => handleSuggestedQuestion(question)}
                   >
                     {question}
@@ -140,13 +204,24 @@ export default function ChatbotPage() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="何でも質問してください！"
-                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
                 className="flex-1"
+                disabled={isLoading}
               />
-              <Button onClick={handleSendMessage} disabled={!inputValue.trim()}>
-                <Send className="h-4 w-4" />
+              <Button 
+                onClick={handleSendMessage} 
+                disabled={!inputValue.trim() || isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              Enterで送信、Shift+Enterで改行
+            </p>
           </div>
         </div>
       </div>
