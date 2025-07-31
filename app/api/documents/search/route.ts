@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SearchEngine } from '@/lib/search-engine'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import Anthropic from '@anthropic-ai/sdk'
 import path from 'path'
 
 let searchEngine: SearchEngine | null = null
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'AIzaSyCr1mI5VNZDcofTRW7hlEIGjKDPtE8ew6o')
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+
+// Initialize the Anthropic client
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
 
 async function initializeSearchEngine() {
   if (!searchEngine) {
@@ -17,7 +23,7 @@ async function initializeSearchEngine() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { query } = await request.json()
+    const { query, provider = 'gemini' } = await request.json()
 
     if (!query || typeof query !== 'string') {
       return NextResponse.json(
@@ -41,11 +47,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Gemini APIで検索結果を要約
+    // AI APIで検索結果を要約
     let summary = ''
     try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-      
       const summaryPrompt = `以下の検索結果を基に、ユーザーの質問「${query}」に対する回答を日本語で簡潔にまとめてください。
 
 検索結果:
@@ -55,11 +59,29 @@ ${searchResults.map((result, index) =>
 
 回答:`
 
-      const result = await model.generateContent(summaryPrompt)
-      const response = await result.response
-      summary = response.text()
+      if (provider === 'anthropic') {
+        // Use Anthropic Claude
+        const response = await anthropic.messages.create({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 500,
+          messages: [
+            {
+              role: 'user',
+              content: summaryPrompt,
+            },
+          ],
+        })
+
+        summary = response.content[0].type === 'text' ? response.content[0].text : ''
+      } else {
+        // Use Gemini (default)
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' })
+        const result = await model.generateContent(summaryPrompt)
+        const response = await result.response
+        summary = response.text()
+      }
     } catch (error) {
-      console.error('Gemini API error:', error)
+      console.error('AI API error:', error)
       summary = '検索結果の要約生成中にエラーが発生しました。'
     }
 

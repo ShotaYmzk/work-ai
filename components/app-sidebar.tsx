@@ -34,32 +34,32 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 const menuItems = [
   {
-    title: "Home",
+    title: "ホーム",
     url: "/",
     icon: Home,
   },
   {
-    title: "Organization",
+    title: "組織",
     url: "/organization",
     icon: Users,
   },
   {
-    title: "Knowledge",
+    title: "ナレッジ",
     url: "/knowledge",
     icon: BookOpen,
   },
   {
-    title: "Experiments",
+    title: "検証",
     url: "/experiments",
     icon: FlaskConical,
   },
   {
-    title: "Analysis",
+    title: "分析",
     url: "/analysis",
     icon: BarChart3,
   },
   {
-    title: "Chatbot",
+    title: "Chat",
     url: "/chatbot",
     icon: MessageSquare,
   },

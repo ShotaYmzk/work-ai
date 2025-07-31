@@ -7,7 +7,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from "@/co
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Send, HelpCircle, Loader2, Sparkles, Search } from "lucide-react"
+import { Send, HelpCircle, Loader2, Sparkles, Search, Bot, Zap } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { Markdown } from "@/components/ui/markdown"
@@ -47,6 +47,7 @@ export default function ChatbotPage() {
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [searchMode, setSearchMode] = useState<'ai' | 'documents'>('ai')
+  const [provider, setProvider] = useState<'gemini' | 'anthropic'>('gemini')
   const { toast } = useToast()
   const { 
     searchResults, 
@@ -74,7 +75,7 @@ export default function ChatbotPage() {
     if (searchMode === 'documents') {
       // ドキュメント検索モード
       try {
-        await searchDocuments(messageContent)
+        await searchDocuments(messageContent, provider)
         
         // 検索結果をチャットメッセージとして追加
         const searchMessage: Message = {
@@ -103,7 +104,10 @@ export default function ChatbotPage() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ message: messageContent }),
+          body: JSON.stringify({ 
+            message: messageContent,
+            provider: provider
+          }),
         })
 
         const data = await response.json()
@@ -180,6 +184,26 @@ export default function ChatbotPage() {
               <Search className="h-4 w-4 mr-1" />
               検索
             </Button>
+            {searchMode === 'ai' && (
+              <>
+                <Button
+                  variant={provider === 'gemini' ? 'default' : 'ghost'}
+                  onClick={() => setProvider('gemini')}
+                  size="sm"
+                >
+                  <Zap className="h-4 w-4 mr-1" />
+                  Gemini
+                </Button>
+                <Button
+                  variant={provider === 'anthropic' ? 'default' : 'ghost'}
+                  onClick={() => setProvider('anthropic')}
+                  size="sm"
+                >
+                  <Bot className="h-4 w-4 mr-1" />
+                  Claude
+                </Button>
+              </>
+            )}
             <Button variant="ghost" size="icon">
               <HelpCircle className="h-4 w-4" />
             </Button>
@@ -198,7 +222,9 @@ export default function ChatbotPage() {
               >
                 {message.sender === "bot" && (
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback>🤖</AvatarFallback>
+                    <AvatarFallback>
+                      {searchMode === 'ai' ? (provider === 'anthropic' ? '🤖' : '⚡') : '🔍'}
+                    </AvatarFallback>
                   </Avatar>
                 )}
                 <Card
@@ -232,14 +258,16 @@ export default function ChatbotPage() {
             {(isLoading || isDocumentSearching) && (
               <div className="flex gap-3 justify-start">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback>🤖</AvatarFallback>
+                  <AvatarFallback>
+                    {searchMode === 'ai' ? (provider === 'anthropic' ? '🤖' : '⚡') : '🔍'}
+                  </AvatarFallback>
                 </Avatar>
                 <Card className="bg-muted">
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <p className="text-sm">
-                        {isDocumentSearching ? '検索中...' : '考え中...'}
+                        {isDocumentSearching ? '検索中...' : `考え中... (${provider === 'anthropic' ? 'Claude' : 'Gemini'})`}
                       </p>
                     </div>
                   </CardContent>

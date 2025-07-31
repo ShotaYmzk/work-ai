@@ -14,7 +14,7 @@ export interface UseDocumentSearchReturn {
   searchResults: DocumentSearchResult | null
   isSearching: boolean
   error: string | null
-  searchDocuments: (query: string) => Promise<void>
+  searchDocuments: (query: string, provider?: 'gemini' | 'anthropic') => Promise<void>
   clearResults: () => void
   initializeIndex: () => Promise<boolean>
 }
@@ -48,7 +48,7 @@ export function useDocumentSearch(): UseDocumentSearchReturn {
     }
   }, [])
 
-  const searchDocuments = useCallback(async (query: string) => {
+  const searchDocuments = useCallback(async (query: string, provider: 'gemini' | 'anthropic' = 'gemini') => {
     if (!query.trim()) {
       setError('検索クエリを入力してください')
       return
@@ -63,7 +63,7 @@ export function useDocumentSearch(): UseDocumentSearchReturn {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, provider }),
       })
 
       const data = await response.json()

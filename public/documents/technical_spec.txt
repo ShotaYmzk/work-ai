@@ -62,7 +62,7 @@ AI API: Google Generative AI (Gemini)
 4. AI機能仕様
 
 4.1 Gemini API統合
-- モデル: gemini-2.5-flash
+- モデル: gemini-2.5-flash-lite
 - 最大トークン数: 8192
 - 温度設定: 0.7
 

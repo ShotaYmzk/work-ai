@@ -30,7 +30,7 @@ const organizationData: Employee = {
   reports: [
     {
       id: "2",
-      name: "Jane Smith",
+      name: "Ujwal Kumar",
       role: "CTO",
       department: "Technology",
       avatar: "/placeholder.svg?height=40&width=40",
@@ -38,7 +38,7 @@ const organizationData: Employee = {
       reports: [
         {
           id: "3",
-          name: "John Doe",
+          name: "Shion Kashihara",
           role: "Lead Engineer",
           department: "Engineering",
           avatar: "/placeholder.svg?height=40&width=40",

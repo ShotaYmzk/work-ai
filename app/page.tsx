@@ -380,7 +380,7 @@ export default function HomePage() {
                       {day}
                     </div>
                   ))}
-                  {["31", "01", "02", "03", "04"].map((date, index) => (
+                  {["31", "01", "02", "03", "04", "05", "06"].map((date, index) => (
                     <div
                       key={date}
                       className={`p-2 rounded ${index === 2 ? "bg-primary text-primary-foreground" : ""}`}
