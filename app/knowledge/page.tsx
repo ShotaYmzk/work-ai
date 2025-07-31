@@ -356,10 +356,6 @@ export default function KnowledgePage() {
           </div>
           <div className="flex items-center gap-2">
             <FileUpload onUploadSuccess={handleUploadSuccess} />
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              コレクションを追加
-            </Button>
           </div>
         </div>
 
