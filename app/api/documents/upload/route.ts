@@ -1,19 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import { SearchEngine } from '@/lib/search-engine'
-
-// グローバルな検索エンジンインスタンス
-let searchEngine: SearchEngine | null = null
-
-async function getSearchEngine() {
-  if (!searchEngine) {
-    searchEngine = new SearchEngine()
-    const documentsDir = join(process.cwd(), 'public', 'documents')
-    await searchEngine.indexDocuments(documentsDir)
-  }
-  return searchEngine
-}
+import { forceReindexSearchEngine } from '@/lib/search-engine-manager'
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,17 +48,15 @@ export async function POST(request: NextRequest) {
     // ファイルを保存
     await writeFile(filePath, buffer)
 
-    // 検索エンジンを再インデックス化
+    // 検索エンジンを強制再インデックス化
     try {
       console.log(`ファイルアップロード後のインデックス化開始: ${safeFileName}`)
       
-      // 強制的に検索エンジンをリセット
-      searchEngine = null
-      const engine = await getSearchEngine()
+      const engine = await forceReindexSearchEngine()
+      const stats = engine.getStats()
       
       console.log(`インデックス化完了: ${safeFileName}`)
-      const stats = engine.getStats()
-      console.log('現在のインデックス統計:', stats)
+      console.log('更新後の統計:', stats)
     } catch (indexError) {
       console.error('検索エンジンの再インデックス化に失敗:', indexError)
       // インデックス化に失敗してもファイルアップロードは成功とする
@@ -82,7 +68,7 @@ export async function POST(request: NextRequest) {
       originalName: file.name,
       size: file.size,
       type: file.type,
-      indexed: true, // インデックス化が完了したことを示す
+      indexed: true,
       message: 'ファイルがアップロードされ、RAGシステムに統合されました'
     })
 

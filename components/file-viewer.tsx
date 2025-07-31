@@ -210,7 +210,7 @@ export function FileViewer({ isOpen, onClose, filename, originalName }: FileView
                 {/* RAG検索結果 */}
                 {ragResult && (
                   <div className="border-t pt-4">
-                    <ScrollArea className="max-h-64">
+                    <ScrollArea className="max-h-96">
                       <div className="space-y-3">
                         <div>
                           <div className="text-sm font-medium mb-2">質問: {ragResult.query}</div>

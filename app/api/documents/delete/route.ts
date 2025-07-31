@@ -1,19 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
-import { SearchEngine } from '@/lib/search-engine'
-
-// グローバルな検索エンジンインスタンス
-let searchEngine: SearchEngine | null = null
-
-async function getSearchEngine() {
-  if (!searchEngine) {
-    searchEngine = new SearchEngine()
-    const documentsDir = join(process.cwd(), 'public', 'documents')
-    await searchEngine.indexDocuments(documentsDir)
-  }
-  return searchEngine
-}
+import { forceReindexSearchEngine } from '@/lib/search-engine-manager'
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -42,11 +30,12 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // 検索エンジンを再インデックス化（削除後）
+    // 検索エンジンを強制再インデックス化（削除後）
     try {
-      const engine = await getSearchEngine()
-      await engine.indexDocuments(documentsDir)
+      const engine = await forceReindexSearchEngine()
+      const stats = engine.getStats()
       console.log(`検索エンジンを再インデックス化しました。削除されたファイル: ${filename}`)
+      console.log('更新後の統計:', stats)
     } catch (indexError) {
       console.error('検索エンジンの再インデックス化に失敗:', indexError)
       // インデックス化に失敗してもファイル削除は成功とする

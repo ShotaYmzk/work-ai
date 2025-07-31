@@ -1,8 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { SearchEngine } from '@/lib/search-engine'
-import path from 'path'
+import { getGlobalSearchEngine } from '@/lib/search-engine-manager'
 
 // Initialize the Gemini AI client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
@@ -11,17 +10,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
-
-let searchEngine: SearchEngine | null = null
-
-async function initializeSearchEngine() {
-  if (!searchEngine) {
-    searchEngine = new SearchEngine()
-    const documentsDir = path.join(process.cwd(), 'public', 'documents')
-    await searchEngine.indexDocuments(documentsDir)
-  }
-  return searchEngine
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,76 +29,58 @@ export async function POST(request: NextRequest) {
     let searchStats: any = null
 
     if (useRAG) {
-      // RAGモード：関連文書を検索して回答生成
+      // RAGモード：全文書を直接プロンプトに含める（デモ用）
       try {
-        const engine = await initializeSearchEngine()
-        const searchResults = engine.search(message, 5) // より多くの結果を検索
+        const engine = await getGlobalSearchEngine()
+        const allDocuments = engine.getDocuments()
         searchStats = engine.getStats()
         
-        if (searchResults.length > 0) {
-          // 検索結果を整理
-          const contextDocs = searchResults.map((result, index) => ({
+        console.log(`全文書参照モード: ${allDocuments.length}個の文書`)
+        console.log('利用可能な文書:', allDocuments.map(doc => doc.title))
+        
+        if (allDocuments.length > 0) {
+          // 関連文書を検索エンジンで特定（表示用）
+          const searchResults = engine.search(message, 3) // 上位3件の関連文書
+          
+          // 表示用の参考文書は関連性の高いもののみ
+          sources = searchResults.map(result => ({
             title: result.document.title,
             content: result.snippet,
-            fullSections: result.relevantSections || [],
-            keywords: result.matchedKeywords || [],
             score: result.score,
-            documentId: result.document.id,
-            type: result.document.type
+            type: result.document.type,
+            keywords: result.matchedKeywords || []
           }))
-          
-          sources = contextDocs
 
-          // 関連文書を提案（最も関連性の高い文書から）
-          if (searchResults.length > 0) {
-            const topDoc = searchResults[0].document
-            const similarDocs = engine.getSimilarDocuments(topDoc.id, 3)
-            relatedDocuments = similarDocs.map(doc => ({
-              title: doc.title,
-              id: doc.id,
-              summary: doc.summary,
-              type: doc.type
-            }))
-          }
+          // プロンプトには全文書を含める（回答精度向上のため）
+          const ragPrompt = `あなたは株式会社Selectの専門的なAIアシスタントです。以下に会社の全ての文書内容を提供しますので、この情報を基にユーザーの質問に正確で詳細な回答を提供してください。
 
-          // 強化されたRAG用のプロンプトを構築
-          const ragPrompt = `あなたは会社の専門的なAIアシスタントです。以下の会社文書の詳細な情報を参考にして、ユーザーの質問に対して**完璧で実用的な回答**を提供してください。
-
-=== 参考文書（関連度順） ===
-${contextDocs.map((doc, index) => {
-  let docInfo = `【文書${index + 1}: ${doc.title}】（関連度: ${(doc.score * 100).toFixed(1)}%）\n`
-  docInfo += `タイプ: ${doc.type}\n`
-  if (doc.keywords.length > 0) {
-    docInfo += `マッチしたキーワード: ${doc.keywords.join(', ')}\n`
-  }
-  docInfo += `内容:\n${doc.content}\n`
-  
-  if (doc.fullSections.length > 0) {
-    docInfo += `関連セクション:\n${doc.fullSections.map(section => `- ${section}`).join('\n')}\n`
-  }
-  
-  return docInfo
-}).join('\n---\n')}
-=== 参考文書ここまで ===
+=== 会社の全文書 ===
+${allDocuments.map((doc, index) => 
+  `【文書${index + 1}: ${doc.title}】\n${doc.content}\n`
+).join('\n---\n')}
+=== 全文書ここまで ===
 
 ユーザーの質問: "${message}"
 
 回答要件：
-1. **完璧性**: 参考文書の情報を最大限活用し、包括的で正確な回答を提供
-2. **具体性**: 抽象的でなく具体的な情報、数値、手順を含める
-3. **引用の明確化**: どの文書のどの部分から情報を引用したかを明記
-4. **実用性**: 実際に行動に移せる具体的なアドバイスや手順を含める
-5. **関連情報**: 質問に関連する追加情報や注意点も提供
-6. **構造化**: 見出しや箇条書きを使って読みやすく整理
+1. **正確性**: 上記の文書内容のみを根拠として回答してください
+2. **具体性**: 人名、数値、具体的な情報を含めて詳細に回答してください
+3. **引用明確化**: どの文書から情報を引用したかを明記してください
+4. **完全性**: 質問に関連する全ての情報を漏れなく提供してください
+5. **構造化**: 見出しや箇条書きを使って読みやすく整理してください
+6. **関連性重視**: 特に以下の関連度の高い文書を重点的に参照してください：
+${searchResults.map((result, index) => 
+  `   - ${result.document.title} (関連度: ${(result.score * 100).toFixed(1)}%)`
+).join('\n')}
 
-NotebookLMスタイルの**詳細で価値の高い回答**を生成してください。文書に記載がない内容については明確に「文書には記載されていません」と伝えてください。
+**重要**: 文書に記載がない内容については「文書には記載されていません」と明確に伝えてください。推測や一般的な知識は使わず、提供された文書の内容のみを根拠に回答してください。
 
 回答:`
 
           if (provider === 'anthropic') {
             const response = await anthropic.messages.create({
               model: 'claude-3-5-sonnet-20241022',
-              max_tokens: 1500, // より長い回答を可能にする
+              max_tokens: 2000,
               messages: [
                 {
                   role: 'user',
@@ -126,39 +96,21 @@ NotebookLMスタイルの**詳細で価値の高い回答**を生成してくだ
             text = response.text()
           }
 
-          // 関連文書の提案は削除（ユーザー要望により）
+          console.log('全文書参照での回答生成完了')
+          console.log('表示用参考文書:', sources.map(s => s.title))
 
         } else {
-          // 関連文書が見つからない場合
-          const noContextPrompt = `ユーザーの質問: "${message}"
+          // 文書が見つからない場合
+          const noDocumentsPrompt = `申し訳ございませんが、現在参照できる会社文書がありません。
 
-申し訳ございませんが、この質問に関連する会社文書が見つかりませんでした（検索対象: ${searchStats?.totalDocuments || 0}個の文書）。
+ユーザーの質問: "${message}"
 
-しかし、一般的な知識として以下のような回答をさせていただきます。より具体的な情報については、関連する文書をナレッジページにアップロードしていただくか、質問を具体化していただけると助かります。
+会社の文書がナレッジベースにアップロードされていないため、この質問にお答えできません。ナレッジページから関連する文書をアップロードしてください。`
 
-回答（一般的な情報として）:`
-
-          if (provider === 'anthropic') {
-            const response = await anthropic.messages.create({
-              model: 'claude-3-5-haiku-20241022',
-              max_tokens: 1000,
-              messages: [
-                {
-                  role: 'user',
-                  content: noContextPrompt,
-                },
-              ],
-            })
-            text = response.content[0].type === 'text' ? response.content[0].text : ''
-          } else {
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' })
-            const result = await model.generateContent(noContextPrompt)
-            const response = await result.response
-            text = response.text()
-          }
+          text = noDocumentsPrompt
         }
       } catch (searchError) {
-        console.error('RAG search error:', searchError)
+        console.error('RAG処理エラー:', searchError)
         // フォールバック：通常のチャットとして処理
         useRAG = false
       }

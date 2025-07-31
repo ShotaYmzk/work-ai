@@ -15,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { FileUpload } from "@/components/file-upload"
 import { FileViewer } from "@/components/file-viewer"
 import { useToast } from "@/hooks/use-toast"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface FileItem {
   name: string
@@ -321,24 +322,26 @@ export default function KnowledgePage() {
             {searchResults.length > 0 && (
               <div className="mt-4">
                 <h4 className="font-medium mb-2">検索結果 ({searchResults.length}件)</h4>
-                <div className="space-y-2">
-                  {searchResults.map((result, index) => (
-                    <div key={index} className="border rounded p-3 bg-muted/50">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="font-medium">{result.title}</div>
-                        <Badge variant="secondary" className="text-xs">
-                          関連度: {(result.score * 100).toFixed(1)}%
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {result.type}
-                        </Badge>
+                <ScrollArea className="max-h-96">
+                  <div className="space-y-2">
+                    {searchResults.map((result, index) => (
+                      <div key={index} className="border rounded p-3 bg-muted/50">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="font-medium">{result.title}</div>
+                          <Badge variant="secondary" className="text-xs">
+                            関連度: {(result.score * 100).toFixed(1)}%
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {result.type}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {result.snippet}
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {result.snippet}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               </div>
             )}
           </CardContent>
