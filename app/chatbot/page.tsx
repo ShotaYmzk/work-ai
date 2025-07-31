@@ -11,8 +11,8 @@ import { Send, HelpCircle, Loader2, Sparkles, Search, Bot, Zap, BookOpen, FileTe
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { Markdown } from "@/components/ui/markdown"
-import { SearchResults } from "@/components/search-results"
-import { useDocumentSearch } from "@/hooks/use-document-search"
+
+
 import { Badge } from "@/components/ui/badge"
 
 interface Message {
@@ -48,13 +48,6 @@ const suggestedQuestions = [
   "技術的な質問があります。",
 ]
 
-const documentSearchQuestions = [
-  "製品仕様書を検索",
-  "開発ガイドの内容",
-  "リモートワーク規定",
-  "会議の議事録",
-]
-
 const ragQuestions = [
   "株式会社Selectの代表取締役は誰ですか？",
   "CTOは誰ですか？詳しく教えてください",
@@ -83,19 +76,12 @@ RAGモードでは全ての会社文書を参照して、完璧な回答をお�
   ])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [searchMode, setSearchMode] = useState<'ai' | 'documents' | 'rag'>('rag')
+  const [searchMode, setSearchMode] = useState<'ai' | 'rag'>('rag')
   const [provider, setProvider] = useState<'gemini' | 'anthropic'>('gemini')
   const { toast } = useToast()
-  const { 
-    searchResults, 
-    isSearching: isDocumentSearching, 
-    error: documentSearchError,
-    searchDocuments, 
-    clearResults 
-  } = useDocumentSearch()
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading || isDocumentSearching) return
+    if (!inputValue.trim() || isLoading) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -107,32 +93,8 @@ RAGモードでは全ての会社文書を参照して、完璧な回答をお�
     setMessages((prev) => [...prev, userMessage])
     const messageContent = inputValue
     setInputValue("")
-    clearResults() // 前回の検索結果をクリア
 
-    if (searchMode === 'documents') {
-      // ドキュメント検索モード
-      try {
-        await searchDocuments(messageContent, provider)
-        
-        // 検索結果をチャットメッセージとして追加
-        const searchMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: `📋 ドキュメント検索結果: "${messageContent}"`,
-          sender: "bot",
-          timestamp: new Date(),
-        }
-        setMessages((prev) => [...prev, searchMessage])
-      } catch (error) {
-        console.error('Document search error:', error)
-        const errorResponse: Message = {
-          id: (Date.now() + 1).toString(),
-          content: "ドキュメント検索中にエラーが発生しました。",
-          sender: "bot",
-          timestamp: new Date(),
-        }
-        setMessages((prev) => [...prev, errorResponse])
-      }
-    } else {
+    {
       // AI チャットモード（RAGまたは通常）
       setIsLoading(true)
       try {
@@ -194,7 +156,6 @@ RAGモードでは全ての会社文書を参照して、完璧な回答をお�
 
   const getCurrentSuggestions = () => {
     switch (searchMode) {
-      case 'documents': return documentSearchQuestions
       case 'rag': return ragQuestions
       default: return suggestedQuestions
     }
@@ -247,14 +208,6 @@ RAGモードでは全ての会社文書を参照して、完璧な回答をお�
             >
               <Sparkles className="h-4 w-4 mr-1" />
               AI
-            </Button>
-            <Button
-              variant={searchMode === 'documents' ? 'default' : 'ghost'}
-              onClick={() => setSearchMode('documents')}
-              size="sm"
-            >
-              <Search className="h-4 w-4 mr-1" />
-              検索
             </Button>
             {(searchMode === 'ai' || searchMode === 'rag') && (
               <>
@@ -390,7 +343,7 @@ RAGモードでは全ての会社文書を参照して、完璧な回答をお�
             ))}
 
             {/* Loading indicator */}
-            {(isLoading || isDocumentSearching) && (
+            {isLoading && (
               <div className="flex gap-3 justify-start">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback>
@@ -402,11 +355,9 @@ RAGモードでは全ての会社文書を参照して、完璧な回答をお�
                     <div className="flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <p className="text-sm">
-                        {isDocumentSearching 
-                          ? '検索中...' 
-                          : searchMode === 'rag' 
-                            ? `文書を参照して回答中... (${provider === 'anthropic' ? 'Claude' : 'Gemini'})`
-                            : `考え中... (${provider === 'anthropic' ? 'Claude' : 'Gemini'})`}
+                        {searchMode === 'rag' 
+                          ? `文書を参照して回答中... (${provider === 'anthropic' ? 'Claude' : 'Gemini'})`
+                          : `考え中... (${provider === 'anthropic' ? 'Claude' : 'Gemini'})`}
                       </p>
                     </div>
                   </CardContent>
@@ -414,25 +365,13 @@ RAGモードでは全ての会社文書を参照して、完璧な回答をお�
               </div>
             )}
 
-            {/* Document Search Results */}
-            {searchResults && (
-              <div className="mt-4">
-                <SearchResults
-                  query={searchResults.query}
-                  results={searchResults.results}
-                  summary={searchResults.summary}
-                  className="max-w-none"
-                />
-              </div>
-            )}
+
 
             {/* Suggested Questions */}
-            {messages.length === 1 && !isLoading && !isDocumentSearching && (
+            {messages.length === 1 && !isLoading && (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground text-center mb-3">
-                  {searchMode === 'documents' 
-                    ? 'ドキュメント検索の例をクリックするか、自由に検索してください：'
-                    : searchMode === 'rag'
+                  {searchMode === 'rag'
                     ? '🚀 RAG（文書参照AI）をお試しください。文書から正確な情報を抽出して詳細回答します：'
                     : '以下の質問例をクリックするか、自由に質問してください：'
                   }
@@ -495,28 +434,22 @@ RAGモードでは全ての会社文書を参照して、完璧な回答をお�
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder={
-                  searchMode === 'documents' 
-                    ? "ドキュメントを検索..." 
-                    : searchMode === 'rag'
+                  searchMode === 'rag'
                     ? "文書を参照してお答えします..."
                     : "何でも質問してください！"
                 }
                 onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && handleSendMessage()}
                 className="flex-1"
-                disabled={isLoading || isDocumentSearching}
+                disabled={isLoading}
               />
               <Button 
                 onClick={handleSendMessage} 
-                disabled={!inputValue.trim() || isLoading || isDocumentSearching}
+                disabled={!inputValue.trim() || isLoading}
               >
-                {(isLoading || isDocumentSearching) ? (
+                {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  searchMode === 'documents' ? (
-                    <Search className="h-4 w-4" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )
+                  <Send className="h-4 w-4" />
                 )}
               </Button>
             </div>

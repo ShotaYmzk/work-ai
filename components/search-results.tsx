@@ -48,7 +48,9 @@ const getFileTypeLabel = (type: string) => {
 }
 
 const formatScore = (score: number) => {
-  return Math.round(score * 100)
+  // スコアを0-1の範囲に正規化してから100倍し、最大100%に制限
+  const normalizedScore = Math.min(score, 1.0)
+  return Math.round(normalizedScore * 100)
 }
 
 export function SearchResults({ 

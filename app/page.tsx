@@ -51,19 +51,11 @@ const searchSuggestions = [
   "タスクの優先順位をつけて",
 ]
 
-const documentSearchSuggestions = [
-  "開発ガイドを教えて",
-  "リモートワークの規定は？",
-  "プロジェクトの技術仕様",
-  "会議の議事録を確認",
-]
-
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResult, setSearchResult] = useState<string | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [searchMode, setSearchMode] = useState<'ai' | 'documents'>('ai')
   const { toast } = useToast()
   const { 
     searchResults, 
@@ -81,17 +73,7 @@ export default function HomePage() {
     clearResults() // 前回の検索結果をクリア
     setSearchResult(null) // AI回答もクリア
 
-    if (searchMode === 'documents') {
-      try {
-        await searchDocuments(searchQuery)
-      } catch (error) {
-        toast({
-          title: "検索エラー",
-          description: documentSearchError || "ドキュメント検索中にエラーが発生しました",
-          variant: "destructive",
-        })
-      }
-    } else {
+    {
       setIsSearching(true)
       try {
         const response = await fetch('/api/chat', {
@@ -99,7 +81,11 @@ export default function HomePage() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ message: searchQuery }),
+          body: JSON.stringify({ 
+            message: searchQuery, 
+            provider: 'gemini',
+            useRAG: true 
+          }),
         })
 
         const data = await response.json()
@@ -127,7 +113,7 @@ export default function HomePage() {
     setShowSuggestions(false)
   }
 
-  const currentSuggestions = searchMode === 'documents' ? documentSearchSuggestions : searchSuggestions
+  const currentSuggestions = searchSuggestions
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -167,29 +153,7 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold mb-2">👋 こんにちは！</h1>
           <p className="text-muted-foreground mb-6">何でも質問してください！</p>
           
-          {/* Search Mode Selector */}
-          <div className="max-w-2xl mx-auto mb-4">
-            <div className="flex justify-center gap-2">
-              <Button
-                variant={searchMode === 'ai' ? 'default' : 'outline'}
-                onClick={() => setSearchMode('ai')}
-                size="sm"
-                className="rounded-full"
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                AI質問
-              </Button>
-              <Button
-                variant={searchMode === 'documents' ? 'default' : 'outline'}
-                onClick={() => setSearchMode('documents')}
-                size="sm"
-                className="rounded-full"
-              >
-                <Search className="h-4 w-4 mr-2" />
-                ドキュメント検索
-              </Button>
-            </div>
-          </div>
+          
 
           {/* Google-style Search Bar */}
           <div className="max-w-2xl mx-auto space-y-4">
@@ -201,7 +165,7 @@ export default function HomePage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyPress={handleKeyPress}
                   onFocus={() => setShowSuggestions(true)}
-                  placeholder={searchMode === 'documents' ? "ドキュメントを検索..." : "何でも質問してください..."}
+                  placeholder="何でも質問してください..."
                   className="pl-12 pr-24 py-6 text-lg border-2 rounded-full shadow-lg hover:shadow-xl transition-shadow focus:shadow-xl"
                   disabled={isSearching || isDocumentSearching}
                 />
@@ -216,11 +180,7 @@ export default function HomePage() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
-                        {searchMode === 'documents' ? (
-                          <Search className="h-4 w-4 mr-2" />
-                        ) : (
-                          <Sparkles className="h-4 w-4 mr-2" />
-                        )}
+                        <Sparkles className="h-4 w-4 mr-2" />
                         検索
                       </>
                     )}
@@ -239,11 +199,7 @@ export default function HomePage() {
                         className="w-full text-left px-4 py-2 hover:bg-muted rounded-md transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          {searchMode === 'documents' ? (
-                            <Search className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Sparkles className="h-4 w-4 text-muted-foreground" />
-                          )}
+                          <Sparkles className="h-4 w-4 text-muted-foreground" />
                           <span className="text-sm">{suggestion}</span>
                         </div>
                       </button>
