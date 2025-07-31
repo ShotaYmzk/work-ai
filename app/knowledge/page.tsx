@@ -9,68 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, MoreHorizontal, FolderOpen, File } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Search, Plus, MoreHorizontal, FolderOpen, File, BarChart3, BookOpen, Zap, RefreshCw } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { FileUpload } from "@/components/file-upload"
 import { FileViewer } from "@/components/file-viewer"
 import { useToast } from "@/hooks/use-toast"
-
-const knowledgeItems = [
-  {
-    id: "1",
-    name: "マニュアル",
-    description: "マニュアル",
-    items: 17,
-    author: "田野 徹",
-    lastUpdated: "2日前",
-    type: "folder",
-  },
-  {
-    id: "2",
-    name: "サポート",
-    description: "サポート",
-    items: 23,
-    author: "田野 徹",
-    lastUpdated: "2日前",
-    type: "folder",
-  },
-  {
-    id: "3",
-    name: "提案資料",
-    description: "提案について",
-    items: 39,
-    author: "田野 徹",
-    lastUpdated: "3日前",
-    type: "folder",
-  },
-  {
-    id: "4",
-    name: "エンジニアリング",
-    description: "開発について",
-    items: 7,
-    author: "田野 徹",
-    lastUpdated: "3日前",
-    type: "folder",
-  },
-  {
-    id: "5",
-    name: "採用",
-    description: "採用について",
-    items: 0,
-    author: "田野 徹",
-    lastUpdated: "3日前",
-    type: "folder",
-  },
-  {
-    id: "6",
-    name: "テスト",
-    description: "テスト",
-    items: 2,
-    author: "田野 徹",
-    lastUpdated: "3日前",
-    type: "folder",
-  },
-]
 
 interface FileItem {
   name: string
@@ -81,11 +25,23 @@ interface FileItem {
   type: string
 }
 
+interface RAGStats {
+  totalDocuments: number
+  totalKeywords: number
+  isIndexed: boolean
+  documentTypes: Record<string, number>
+}
+
 export default function KnowledgePage() {
   const [uploadedFiles, setUploadedFiles] = useState<FileItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null)
   const [isViewerOpen, setIsViewerOpen] = useState(false)
+  const [ragStats, setRagStats] = useState<RAGStats | null>(null)
+  const [isReindexing, setIsReindexing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
   const { toast } = useToast()
 
   const fetchFiles = async () => {
@@ -103,12 +59,105 @@ export default function KnowledgePage() {
     }
   }
 
+  const fetchRAGStats = async () => {
+    try {
+      const response = await fetch('/api/documents/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          query: 'test', // ダミークエリ
+          getStatsOnly: true 
+        }),
+      })
+      const result = await response.json()
+      
+      if (result.searchStats) {
+        setRagStats(result.searchStats)
+      }
+    } catch (error) {
+      console.error('RAG統計の取得に失敗:', error)
+    }
+  }
+
   useEffect(() => {
     fetchFiles()
+    fetchRAGStats()
   }, [])
 
   const handleUploadSuccess = () => {
-    fetchFiles() // アップロード後にファイル一覧を再取得
+    fetchFiles()
+    fetchRAGStats() // アップロード後にRAG統計を更新
+    toast({
+      title: "成功",
+      description: "ファイルがアップロードされ、RAGシステムに統合されました",
+    })
+  }
+
+  const handleReindex = async () => {
+    setIsReindexing(true)
+    try {
+      // RAGシステムの再インデックス化
+      const response = await fetch('/api/documents/index', {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        await fetchRAGStats()
+        toast({
+          title: "成功",
+          description: "RAGシステムが再インデックス化されました",
+        })
+      } else {
+        throw new Error('再インデックス化に失敗しました')
+      }
+    } catch (error) {
+      toast({
+        title: "エラー",
+        description: "再インデックス化中にエラーが発生しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsReindexing(false)
+    }
+  }
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return
+    
+    setIsSearching(true)
+    try {
+      const response = await fetch('/api/documents/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          query: searchQuery,
+          provider: 'gemini'
+        }),
+      })
+      
+      const result = await response.json()
+      if (result.success) {
+        setSearchResults(result.results || [])
+        if (result.results?.length === 0) {
+          toast({
+            title: "検索結果",
+            description: "該当する文書が見つかりませんでした",
+          })
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "エラー",
+        description: "検索中にエラーが発生しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSearching(false)
+    }
   }
 
   const formatFileSize = (bytes: number) => {
@@ -138,9 +187,10 @@ export default function KnowledgePage() {
       if (response.ok) {
         toast({
           title: "成功",
-          description: "ファイルが正常に削除されました",
+          description: "ファイルが削除され、RAGシステムから除外されました",
         })
-        fetchFiles() // ファイル一覧を再取得
+        fetchFiles()
+        fetchRAGStats() // 削除後にRAG統計を更新
       } else {
         toast({
           title: "エラー",
@@ -184,51 +234,129 @@ export default function KnowledgePage() {
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        {/* RAG統計情報カード */}
+        {ragStats && (
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-blue-600" />
+                RAGシステム統計
+                <Badge variant="secondary" className="ml-auto">
+                  {ragStats.isIndexed ? 'インデックス済み' : '未インデックス'}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{ragStats.totalDocuments}</div>
+                  <div className="text-sm text-blue-800">文書数</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{ragStats.totalKeywords}</div>
+                  <div className="text-sm text-green-800">キーワード</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {Object.keys(ragStats.documentTypes).length}
+                  </div>
+                  <div className="text-sm text-purple-800">ファイル形式</div>
+                </div>
+                <div className="text-center">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleReindex}
+                    disabled={isReindexing}
+                    className="w-full"
+                  >
+                    {isReindexing ? (
+                      <RefreshCw className="h-4 w-4 animate-spin mr-1" />
+                    ) : (
+                      <Zap className="h-4 w-4 mr-1" />
+                    )}
+                    再構築
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t">
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(ragStats.documentTypes).map(([type, count]) => (
+                    <Badge key={type} variant="outline" className="text-xs">
+                      {type}: {count}個
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ナレッジ検索 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              ナレッジ検索
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="文書を検索..."
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                className="flex-1"
+              />
+              <Button onClick={handleSearch} disabled={isSearching || !searchQuery.trim()}>
+                {isSearching ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            
+            {searchResults.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-medium mb-2">検索結果 ({searchResults.length}件)</h4>
+                <div className="space-y-2">
+                  {searchResults.map((result, index) => (
+                    <div key={index} className="border rounded p-3 bg-muted/50">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="font-medium">{result.title}</div>
+                        <Badge variant="secondary" className="text-xs">
+                          関連度: {(result.score * 100).toFixed(1)}%
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {result.type}
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {result.snippet}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">コレクション</h1>
+            <h1 className="text-2xl font-bold">ファイル管理</h1>
+            <p className="text-muted-foreground">
+              アップロードされたファイルは自動的にRAGシステムに統合されます
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <Select defaultValue="collections">
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="collections">コレクションについて</SelectItem>
-                <SelectItem value="documents">ドキュメント</SelectItem>
-                <SelectItem value="templates">テンプレート</SelectItem>
-              </SelectContent>
-            </Select>
             <FileUpload onUploadSuccess={handleUploadSuccess} />
             <Button>
               <Plus className="h-4 w-4 mr-2" />
               コレクションを追加
             </Button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Select defaultValue="author">
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="作成者" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="author">作成者</SelectItem>
-              <SelectItem value="all">すべて</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select defaultValue="department">
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="部門" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="department">部門</SelectItem>
-              <SelectItem value="all">すべて</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input placeholder="作者を検索" className="pl-10" />
           </div>
         </div>
 

@@ -23,7 +23,19 @@ async function initializeSearchEngine() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { query, provider = 'gemini' } = await request.json()
+    const { query, provider = 'gemini', getStatsOnly = false } = await request.json()
+
+    // 検索エンジンを初期化
+    const engine = await initializeSearchEngine()
+    const searchStats = engine.getStats()
+
+    // 統計情報のみを要求された場合
+    if (getStatsOnly) {
+      return NextResponse.json({
+        success: true,
+        searchStats
+      })
+    }
 
     if (!query || typeof query !== 'string') {
       return NextResponse.json(
@@ -31,31 +43,54 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    // 検索エンジンを初期化
-    const engine = await initializeSearchEngine()
     
-    // 検索実行
-    const searchResults = engine.search(query, 3) // 上位3件
+    // 検索実行（拡張版）
+    const searchResults = engine.search(query, 5) // より多くの結果
 
     if (searchResults.length === 0) {
       return NextResponse.json({
         success: true,
         query,
         results: [],
-        summary: '関連するドキュメントが見つかりませんでした。'
+        summary: '関連するドキュメントが見つかりませんでした。',
+        searchStats
       })
     }
 
-    // AI APIで検索結果を要約
+    // AI APIで検索結果を要約（強化版）
     let summary = ''
     try {
-      const summaryPrompt = `以下の検索結果を基に、ユーザーの質問「${query}」に対する回答を日本語で簡潔にまとめてください。
+      const enhancedResults = searchResults.map((result, index) => ({
+        title: result.document.title,
+        snippet: result.snippet,
+        relevantSections: result.relevantSections || [],
+        matchedKeywords: result.matchedKeywords || [],
+        score: result.score,
+        type: result.document.type
+      }))
 
-検索結果:
-${searchResults.map((result, index) => 
-  `${index + 1}. ${result.document.title}\n${result.snippet}\n`
-).join('\n')}
+      const summaryPrompt = `以下の検索結果を基に、ユーザーの質問「${query}」に対する**詳細で実用的な回答**を日本語で生成してください。
+
+検索結果（関連度順）:
+${enhancedResults.map((result, index) => {
+  let resultText = `${index + 1}. 【${result.title}】（関連度: ${(result.score * 100).toFixed(1)}%）\n`
+  resultText += `   タイプ: ${result.type}\n`
+  if (result.matchedKeywords.length > 0) {
+    resultText += `   マッチしたキーワード: ${result.matchedKeywords.join(', ')}\n`
+  }
+  resultText += `   内容: ${result.snippet}\n`
+  if (result.relevantSections.length > 0) {
+    resultText += `   関連セクション:\n${result.relevantSections.map(s => `   - ${s}`).join('\n')}\n`
+  }
+  return resultText
+}).join('\n')}
+
+要件:
+- 検索結果の情報を最大限活用して包括的な回答を生成
+- 具体的な情報、手順、数値を含める
+- どの文書から引用したかを明記
+- 実用的なアドバイスや次のステップを提案
+- 見出しや箇条書きを使って構造化
 
 回答:`
 
@@ -63,7 +98,7 @@ ${searchResults.map((result, index) =>
         // Use Anthropic Claude
         const response = await anthropic.messages.create({
           model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 500,
+          max_tokens: 1000,
           messages: [
             {
               role: 'user',
@@ -85,17 +120,25 @@ ${searchResults.map((result, index) =>
       summary = '検索結果の要約生成中にエラーが発生しました。'
     }
 
+    // 詳細な検索結果を返す
+    const enhancedSearchResults = searchResults.map(result => ({
+      id: result.document.id,
+      title: result.document.title,
+      snippet: result.snippet,
+      score: result.score,
+      type: result.document.type,
+      matchedKeywords: result.matchedKeywords || [],
+      relevantSections: result.relevantSections || [],
+      summary: result.document.summary
+    }))
+
     return NextResponse.json({
       success: true,
       query,
-      results: searchResults.map(result => ({
-        id: result.document.id,
-        title: result.document.title,
-        snippet: result.snippet,
-        score: result.score,
-        type: result.document.type
-      })),
-      summary
+      results: enhancedSearchResults,
+      summary,
+      searchStats,
+      totalResults: searchResults.length
     })
   } catch (error) {
     console.error('Search error:', error)

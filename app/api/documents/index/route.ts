@@ -6,32 +6,26 @@ let searchEngine: SearchEngine | null = null
 
 export async function POST(request: NextRequest) {
   try {
-    if (!searchEngine) {
-      searchEngine = new SearchEngine()
-    }
-
-    // public/documents ディレクトリをインデックス化
+    // 検索エンジンを再作成して完全に再インデックス化
+    searchEngine = new SearchEngine()
     const documentsDir = path.join(process.cwd(), 'public', 'documents')
     
     await searchEngine.indexDocuments(documentsDir)
+    const stats = searchEngine.getStats()
     
-    const documents = searchEngine.getDocuments()
+    console.log('手動再インデックス化完了:', stats)
     
     return NextResponse.json({
       success: true,
-      message: `${documents.length}個のドキュメントをインデックス化しました`,
-      documents: documents.map(doc => ({
-        id: doc.id,
-        title: doc.title,
-        type: doc.type
-      }))
+      message: 'RAGシステムの再インデックス化が完了しました',
+      stats
     })
   } catch (error) {
-    console.error('Indexing error:', error)
+    console.error('再インデックス化エラー:', error)
     return NextResponse.json(
       { 
-        success: false, 
-        error: 'ドキュメントのインデックス化中にエラーが発生しました',
+        success: false,
+        error: '再インデックス化中にエラーが発生しました',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
