@@ -342,7 +342,7 @@ export default function ChatbotPage() {
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm flex items-center gap-2">
                           <FileText className="h-4 w-4" />
-                          参照文書 ({message.sources.length}件)
+                          参照文書 ({Math.min(message.sources.length, 3)}件)
                           {message.searchStats && (
                             <Badge variant="outline" className="text-xs">
                               {message.searchStats.totalDocuments}個の文書から検索
@@ -352,7 +352,7 @@ export default function ChatbotPage() {
                       </CardHeader>
                       <CardContent className="pt-0">
                         <div className="space-y-3">
-                          {message.sources.map((source, index) => (
+                          {message.sources.slice(0, 3).map((source, index) => (
                             <div key={index} className="text-sm border rounded p-3 bg-muted/30">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className="font-medium text-blue-600">{source.title}</div>
@@ -367,7 +367,7 @@ export default function ChatbotPage() {
                               </div>
                               {source.keywords && source.keywords.length > 0 && (
                                 <div className="mb-2 flex flex-wrap gap-1">
-                                  {source.keywords.map((keyword, kidx) => (
+                                  {source.keywords.slice(0, 5).map((keyword, kidx) => (
                                     <Badge key={kidx} variant="secondary" className="text-xs">
                                       {keyword}
                                     </Badge>
@@ -385,36 +385,7 @@ export default function ChatbotPage() {
                   </div>
                 )}
 
-                {/* 関連文書の提案 */}
-                {message.relatedDocuments && message.relatedDocuments.length > 0 && (
-                  <div className="ml-11 mt-2">
-                    <Card className="bg-background border-l-4 border-l-green-500">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <BookOpen className="h-4 w-4" />
-                          関連する文書
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="space-y-2">
-                          {message.relatedDocuments.map((doc, index) => (
-                            <div key={index} className="text-sm p-2 border rounded bg-green-50/50">
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className="font-medium text-green-700">{doc.title}</div>
-                                <Badge variant="secondary" className="text-xs">
-                                  {doc.type}
-                                </Badge>
-                              </div>
-                              <div className="text-muted-foreground text-xs">
-                                {doc.summary}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
+                {/* 関連文書の提案は削除 */}
               </div>
             ))}
 

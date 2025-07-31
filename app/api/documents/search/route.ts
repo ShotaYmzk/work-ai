@@ -25,9 +25,13 @@ export async function POST(request: NextRequest) {
   try {
     const { query, provider = 'gemini', getStatsOnly = false } = await request.json()
 
+    console.log(`検索API呼び出し: query="${query}", provider="${provider}"`)
+
     // 検索エンジンを初期化
     const engine = await initializeSearchEngine()
     const searchStats = engine.getStats()
+
+    console.log('検索エンジン統計:', searchStats)
 
     // 統計情報のみを要求された場合
     if (getStatsOnly) {
@@ -45,14 +49,17 @@ export async function POST(request: NextRequest) {
     }
     
     // 検索実行（拡張版）
+    console.log('検索実行開始...')
     const searchResults = engine.search(query, 5) // より多くの結果
+    console.log(`検索結果: ${searchResults.length}件`)
 
     if (searchResults.length === 0) {
+      console.log('検索結果が0件でした')
       return NextResponse.json({
         success: true,
         query,
         results: [],
-        summary: '関連するドキュメントが見つかりませんでした。',
+        summary: `「${query}」に関連するドキュメントが見つかりませんでした。別のキーワードでお試しください。`,
         searchStats
       })
     }
@@ -68,6 +75,8 @@ export async function POST(request: NextRequest) {
         score: result.score,
         type: result.document.type
       }))
+
+      console.log('AI要約生成開始...')
 
       const summaryPrompt = `以下の検索結果を基に、ユーザーの質問「${query}」に対する**詳細で実用的な回答**を日本語で生成してください。
 
@@ -95,7 +104,6 @@ ${enhancedResults.map((result, index) => {
 回答:`
 
       if (provider === 'anthropic') {
-        // Use Anthropic Claude
         const response = await anthropic.messages.create({
           model: 'claude-3-5-sonnet-20241022',
           max_tokens: 1000,
@@ -109,12 +117,13 @@ ${enhancedResults.map((result, index) => {
 
         summary = response.content[0].type === 'text' ? response.content[0].text : ''
       } else {
-        // Use Gemini (default)
         const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' })
         const result = await model.generateContent(summaryPrompt)
         const response = await result.response
         summary = response.text()
       }
+      
+      console.log('AI要約生成完了')
     } catch (error) {
       console.error('AI API error:', error)
       summary = '検索結果の要約生成中にエラーが発生しました。'
@@ -131,6 +140,8 @@ ${enhancedResults.map((result, index) => {
       relevantSections: result.relevantSections || [],
       summary: result.document.summary
     }))
+
+    console.log('検索API応答送信')
 
     return NextResponse.json({
       success: true,

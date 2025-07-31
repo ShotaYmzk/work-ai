@@ -126,14 +126,7 @@ NotebookLMスタイルの**詳細で価値の高い回答**を生成してくだ
             text = response.text()
           }
 
-          // 関連文書の提案を回答に追加
-          if (relatedDocuments.length > 0) {
-            text += `\n\n---\n\n## 📚 関連して役立つ文書\n\n`
-            relatedDocuments.forEach((doc, index) => {
-              text += `${index + 1}. **${doc.title}** (${doc.type})\n   ${doc.summary}\n\n`
-            })
-            text += `これらの文書も参考になる可能性があります。詳細はナレッジページでご確認ください。`
-          }
+          // 関連文書の提案は削除（ユーザー要望により）
 
         } else {
           // 関連文書が見つからない場合

@@ -62,9 +62,15 @@ export async function POST(request: NextRequest) {
 
     // 検索エンジンを再インデックス化
     try {
+      console.log(`ファイルアップロード後のインデックス化開始: ${safeFileName}`)
+      
+      // 強制的に検索エンジンをリセット
+      searchEngine = null
       const engine = await getSearchEngine()
-      await engine.indexDocuments(documentsDir)
-      console.log(`検索エンジンを再インデックス化しました。新しいファイル: ${safeFileName}`)
+      
+      console.log(`インデックス化完了: ${safeFileName}`)
+      const stats = engine.getStats()
+      console.log('現在のインデックス統計:', stats)
     } catch (indexError) {
       console.error('検索エンジンの再インデックス化に失敗:', indexError)
       // インデックス化に失敗してもファイルアップロードは成功とする
